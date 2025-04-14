@@ -1,0 +1,88 @@
+name: Build Minimal Arch Linux Image
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+      options: --privileged
+
+    steps:
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm arch-install-scripts tar gzip
+
+      - name: Build Arch Linux image
+        id: build_image
+        run: |
+          CURRENT_DATE=$(date +%Y%m%d)
+          WORK_DIR="/tmp/arch-build"
+          IMAGE_NAME="arch-linux-minimal-$CURRENT_DATE.tar.gz"
+          PACKAGES="base linux linux-firmware grub"
+
+          mkdir -p "$WORK_DIR"
+
+          echo "Installing minimal Arch Linux system..."
+          pacstrap -Kc "$WORK_DIR" $PACKAGES
+
+          echo "Configuring system..."
+          echo "archlinux" > "$WORK_DIR/etc/hostname"
+
+          cat > "$WORK_DIR/etc/hosts" << EOF
+          127.0.0.1   localhost
+          ::1         localhost
+          EOF
+
+          echo "LANG=en_US.UTF-8" > "$WORK_DIR/etc/locale.conf"
+          echo "en_US.UTF-8 UTF-8" > "$WORK_DIR/etc/locale.gen"
+
+          ln -sf /usr/share/zoneinfo/UTC "$WORK_DIR/etc/localtime"
+
+          arch-chroot "$WORK_DIR" /bin/bash -c "
+            locale-gen
+            echo 'root:toor' | chpasswd
+          "
+
+          echo "Creating tarball..."
+          cd "$WORK_DIR"
+          tar czf "/tmp/$IMAGE_NAME" .
+
+          echo "Image created: /tmp/$IMAGE_NAME"
+
+          # Copy tarball to the mounted workspace directory so it persists outside container
+          cp "/tmp/$IMAGE_NAME" "$GITHUB_WORKSPACE/"
+
+          # Export CURRENT_DATE for later steps
+          echo "CURRENT_DATE=$CURRENT_DATE" >> $GITHUB_ENV
+
+      - name: Upload Arch Linux image
+        uses: actions/upload-artifact@v4
+        with:
+          name: arch-linux-minimal
+          path: arch-linux-minimal-*.tar.gz
+          retention-days: 7
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: "release-${{ env.CURRENT_DATE || github.run_number }}"
+          name: "Arch Linux Minimal Image - ${{ env.CURRENT_DATE }}"
+          files: arch-linux-minimal-*.tar.gz
+          body: |
+            Minimal Arch Linux image for basic server/system setup.
+            Build date: ${{ env.CURRENT_DATE }}
+            Contains only the essential packages for a bootable system.
+            Root password: toor (change this immediately after first boot!)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

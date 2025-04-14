@@ -97,11 +97,11 @@ jobs:
         cp "/tmp/$IMAGE_NAME" /github/workspace/
 
     - name: Upload Arch Linux image
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: arch-linux-minimal
         path: arch-linux-minimal-*.tar.gz
-        retention-days: 5
+        retention-days: 7
 
     # Create release with the image, daily or on manual trigger
     - name: Create Release

@@ -38,7 +38,7 @@ jobs:
         
         # Run pacstrap to create a basic system
         echo "Installing minimal Arch Linux system..."
-        pacstrap -c "$WORK_DIR" $PACKAGES
+        pacstrap -Kc "$WORK_DIR" $PACKAGES
         
         # Basic system configuration
         echo "Configuring system..."

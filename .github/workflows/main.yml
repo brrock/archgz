@@ -1,0 +1,119 @@
+name: Build Minimal Arch Linux Image
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual triggering
+  schedule:
+    - cron: '0 0 * * *'  # Run daily at midnight UTC
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+      options: --privileged
+
+    steps:
+    - name: Install dependencies
+      run: |
+        pacman -Syu --noconfirm
+        pacman -S --noconfirm arch-install-scripts tar gzip
+
+    - name: Build Arch Linux image
+      run: |
+        # Get current date
+        CURRENT_DATE=$(date +%Y%m%d)
+        
+        # Configuration
+        WORK_DIR="/tmp/arch-build"
+        IMAGE_NAME="arch-linux-minimal-$CURRENT_DATE.tar.gz"
+        # Minimal package selection
+        PACKAGES="base linux linux-firmware grub"
+
+        # Create working directory
+        mkdir -p "$WORK_DIR"
+        
+        # Run pacstrap to create a basic system
+        echo "Installing minimal Arch Linux system..."
+        pacstrap -c -d "$WORK_DIR" $PACKAGES
+        
+        # Basic system configuration
+        echo "Configuring system..."
+        
+        # Set hostname
+        echo "archlinux" > "$WORK_DIR/etc/hostname"
+        
+        # Configure hosts file
+        cat > "$WORK_DIR/etc/hosts" << EOF
+        127.0.0.1   localhost
+        ::1         localhost
+        EOF
+        
+        # Configure locale
+        echo "LANG=en_US.UTF-8" > "$WORK_DIR/etc/locale.conf"
+        echo "en_US.UTF-8 UTF-8" > "$WORK_DIR/etc/locale.gen"
+        
+        # Set timezone
+        ln -sf /usr/share/zoneinfo/UTC "$WORK_DIR/etc/localtime"
+        
+        # Configure root user
+        arch-chroot "$WORK_DIR" /bin/bash -c "
+          # Generate locale
+          locale-gen
+          
+          # Set root password to 'toor'
+          echo 'root:toor' | chpasswd
+        "
+        
+        # Create a simple post-install instructions
+        cat > "$WORK_DIR/root/README.txt" << 'EOF'
+        MINIMAL ARCH LINUX IMAGE
+        =======================
+        
+        To complete installation after imaging to disk:
+        
+        1. Install GRUB:
+           # grub-install --target=i386-pc /dev/sdX
+           # grub-mkconfig -o /boot/grub/grub.cfg
+        
+        2. Root password is set to: toor
+           Change it immediately after booting!
+        EOF
+        
+        # Create the tarball
+        echo "Creating tarball..."
+        cd "$WORK_DIR"
+        tar czf "/tmp/$IMAGE_NAME" .
+        
+        echo "Image created: /tmp/$IMAGE_NAME"
+        
+        # Export the date as an environment variable for the release step
+        echo "CURRENT_DATE=$CURRENT_DATE" >> $GITHUB_ENV
+        
+        # Move to a location that persists for artifact upload
+        cp "/tmp/$IMAGE_NAME" /github/workspace/
+
+    - name: Upload Arch Linux image
+      uses: actions/upload-artifact@v3
+      with:
+        name: arch-linux-minimal
+        path: arch-linux-minimal-*.tar.gz
+        retention-days: 5
+
+    # Create release with the image, daily or on manual trigger
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: "release-${{ env.CURRENT_DATE || github.run_number }}"
+        name: "Arch Linux Minimal Image - $(date +%Y-%m-%d)"
+        files: arch-linux-minimal-*.tar.gz
+        body: |
+          Minimal Arch Linux image for basic server/system setup.
+          Build date: $(date +%Y-%m-%d)
+          Contains only the essential packages for a bootable system.
+          Root password: toor (change this immediately after first boot!)
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

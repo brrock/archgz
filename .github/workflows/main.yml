@@ -79,7 +79,7 @@ jobs:
         echo "CURRENT_DATE=$CURRENT_DATE" >> $GITHUB_ENV
         
         # Move to a location that persists for artifact upload
-        cp "/tmp/$IMAGE_NAME" /github/workspace/
+        cp "/tmp/$IMAGE_NAME" .
 
     - name: Upload Arch Linux image
       uses: actions/upload-artifact@v4

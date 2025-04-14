@@ -38,7 +38,7 @@ jobs:
         
         # Run pacstrap to create a basic system
         echo "Installing minimal Arch Linux system..."
-        pacstrap -c -d "$WORK_DIR" $PACKAGES
+        pacstrap -c "$WORK_DIR" $PACKAGES
         
         # Basic system configuration
         echo "Configuring system..."
@@ -67,21 +67,6 @@ jobs:
           # Set root password to 'toor'
           echo 'root:toor' | chpasswd
         "
-        
-        # Create a simple post-install instructions
-        cat > "$WORK_DIR/root/README.txt" << 'EOF'
-        MINIMAL ARCH LINUX IMAGE
-        =======================
-        
-        To complete installation after imaging to disk:
-        
-        1. Install GRUB:
-           # grub-install --target=i386-pc /dev/sdX
-           # grub-mkconfig -o /boot/grub/grub.cfg
-        
-        2. Root password is set to: toor
-           Change it immediately after booting!
-        EOF
         
         # Create the tarball
         echo "Creating tarball..."
